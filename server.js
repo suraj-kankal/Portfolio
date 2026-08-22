@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config({ path: './environment.env' });
 const nodemailer = require('nodemailer');
+const dns = require('dns').promises;
 const database = require('./database');
 
 const app = express();
@@ -181,6 +182,27 @@ app.post('/api/contact', async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'Please provide name, email, and message'
+    });
+  }
+
+  // Email format validation
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please enter a valid email address'
+    });
+  }
+
+  // Verify email domain has MX records (can actually receive mail)
+  try {
+    const domain = email.split('@')[1];
+    await dns.resolveMx(domain);
+  } catch (dnsError) {
+    console.log(`\u2717 Invalid email domain: ${email}`);
+    return res.status(400).json({
+      success: false,
+      message: 'This email domain does not exist. Please check your email address.'
     });
   }
 

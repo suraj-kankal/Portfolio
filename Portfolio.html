@@ -317,6 +317,22 @@
     .field textarea:focus {
       border-color: var(--accent);
     }
+    .field input.input-valid {
+      border-color: #22c55e;
+    }
+    .field input.input-invalid {
+      border-color: #ef4444;
+    }
+    .field .email-error {
+      color: #ef4444;
+      font-size: 0.73rem;
+      font-family: var(--font-code);
+      margin-top: 0.2rem;
+      display: none;
+    }
+    .field .email-error.visible {
+      display: block;
+    }
     .field textarea {
       min-height: 140px;
     }
@@ -335,6 +351,40 @@
     .contact-btn:hover {
       filter: brightness(1.12);
       transform: translateY(-1px);
+    }
+    .contact-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .form-message {
+      display: none;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-family: var(--font-body);
+      line-height: 1.5;
+      margin-top: 0.75rem;
+      animation: fadeSlideIn 0.35s ease-out;
+    }
+    .form-message.visible {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .form-message.success {
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+      color: #4ade80;
+    }
+    .form-message.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .fade-in-section {
       opacity: 0;
@@ -438,6 +488,7 @@
         <div class="field">
           <label for="email">Your Email</label>
           <input type="email" id="email" name="email" placeholder="your@email.com" required>
+          <span class="email-error" id="email-error">Please enter a valid email address</span>
         </div>
       </div>
 
@@ -451,7 +502,8 @@
         <textarea id="message" name="message" placeholder="Write your message here..." required></textarea>
       </div>
 
-      <button type="submit" class="contact-btn">Contact Me</button>
+      <button type="submit" class="contact-btn" id="contact-submit-btn">Contact Me</button>
+      <div class="form-message" id="form-message"></div>
     </form>
   </div>
 </section>
@@ -612,7 +664,49 @@
       });
     }
 
+    // ===== EMAIL VALIDATION =====
+    function isValidEmail(email) {
+      const regex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+      return regex.test(email);
+    }
+
+    function initializeEmailValidation() {
+      const emailInput = document.getElementById('email');
+      const emailError = document.getElementById('email-error');
+      if (!emailInput || !emailError) return;
+
+      emailInput.addEventListener('input', function () {
+        const value = emailInput.value.trim();
+        if (value === '') {
+          emailInput.classList.remove('input-valid', 'input-invalid');
+          emailError.classList.remove('visible');
+        } else if (isValidEmail(value)) {
+          emailInput.classList.add('input-valid');
+          emailInput.classList.remove('input-invalid');
+          emailError.classList.remove('visible');
+        } else {
+          emailInput.classList.add('input-invalid');
+          emailInput.classList.remove('input-valid');
+          emailError.classList.add('visible');
+        }
+      });
+    }
+
     // ===== CONTACT FORM - SUBMIT TO BACKEND =====
+    function showFormMessage(type, text) {
+      const msgEl = document.getElementById('form-message');
+      if (!msgEl) return;
+      const icon = type === 'success' ? '✅' : '❌';
+      msgEl.className = 'form-message visible ' + type;
+      msgEl.innerHTML = `<span>${icon}</span><span>${text}</span>`;
+      if (type === 'success') {
+        setTimeout(() => {
+          msgEl.className = 'form-message';
+          msgEl.innerHTML = '';
+        }, 6000);
+      }
+    }
+
     function initializeContactForm() {
       const contactForm = document.getElementById('contact-form');
       if (!contactForm) return;
@@ -624,11 +718,22 @@
         const email = document.getElementById('email').value.trim();
         const subject = document.getElementById('subject')?.value.trim() || 'No subject';
         const message = document.getElementById('message').value.trim();
+        const submitBtn = document.getElementById('contact-submit-btn');
 
         if (!name || !email || !message) {
-          alert('Please fill all required fields');
+          showFormMessage('error', 'Please fill all required fields.');
           return;
         }
+
+        if (!isValidEmail(email)) {
+          showFormMessage('error', 'Please enter a valid email address.');
+          document.getElementById('email').focus();
+          return;
+        }
+
+        // Disable button while sending
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending...';
 
         try {
           console.log('📤 Sending contact form to backend...');
@@ -650,29 +755,35 @@
 
           if (result.success) {
             console.log('✓ Contact saved to database!');
-            alert('✓ Thank you! Your message has been saved to our database.\nWe will contact you soon.');
+            showFormMessage('success', 'Thank you! Your message has been sent successfully. I will get back to you soon.');
             contactForm.reset();
+            document.getElementById('email').classList.remove('input-valid', 'input-invalid');
+            document.getElementById('email-error').classList.remove('visible');
           } else {
-            alert('✗ Error: ' + result.message);
+            showFormMessage('error', result.message || 'Something went wrong. Please try again.');
           }
         } catch (error) {
           console.error('✗ Error submitting contact:', error);
-          alert('✗ Error submitting form. Please try again.');
+          showFormMessage('error', 'Unable to send message. Please check your connection and try again.');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Contact Me';
         }
       });
     }
 
     // ===== INITIALIZE EVERYTHING ON PAGE LOAD =====
-    document.addEventListener('DOMContentLoaded', async function () {
+    document.addEventListener('DOMContentLoaded', function () {
       console.log('🚀 Initializing Portfolio...');
       
-      // Load all data from backend
-      await loadPortfolioData();
-      
-      // Initialize features
-      initializeTypingEffect();
+      // Initialize UI features first (these don't depend on backend)
       initializeScrollAnimation();
       initializeContactForm();
+      initializeEmailValidation();
+      
+      // Load data from backend (non-blocking — won't break contact form if it fails)
+      loadPortfolioData();
+      initializeTypingEffect();
       
       console.log('✓ Portfolio initialized successfully!');
     });
