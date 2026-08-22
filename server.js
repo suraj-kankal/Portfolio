@@ -289,6 +289,59 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint: Test Email Delivery
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const isConfigured = Boolean(process.env.BREVO_SMTP_LOGIN && process.env.BREVO_SMTP_KEY);
+    if (!isConfigured) {
+      return res.status(400).json({
+        success: false,
+        message: 'Brevo SMTP credentials are not configured in environment variables.',
+        env_status: {
+          BREVO_SMTP_LOGIN: Boolean(process.env.BREVO_SMTP_LOGIN),
+          BREVO_SMTP_KEY: Boolean(process.env.BREVO_SMTP_KEY),
+          BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || 'not set',
+          NOTIFY_EMAIL: process.env.NOTIFY_EMAIL || 'not set'
+        }
+      });
+    }
+
+    const testTransporter = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.BREVO_SMTP_LOGIN,
+        pass: process.env.BREVO_SMTP_KEY
+      }
+    });
+
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_LOGIN;
+    const notifyEmail = process.env.NOTIFY_EMAIL || process.env.BREVO_SMTP_LOGIN;
+
+    const info = await testTransporter.sendMail({
+      from: `"Portfolio Test" <${senderEmail}>`,
+      to: notifyEmail,
+      subject: '🧪 Live Portfolio Test Email',
+      html: '<p>This is a test email sent from your live deployed portfolio on Render!</p>'
+    });
+
+    return res.json({
+      success: true,
+      message: `✓ Test email sent successfully to ${notifyEmail}!`,
+      messageId: info.messageId,
+      response: info.response
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      code: error.code,
+      command: error.command
+    });
+  }
+});
+
 // ===== PROTECTED ENDPOINTS (Requires Authentication) =====
 
 // 7. Admin endpoint - Get private data (admin only)
