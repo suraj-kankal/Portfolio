@@ -15,7 +15,10 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.BREVO_SMTP_LOGIN,
     pass: process.env.BREVO_SMTP_KEY
-  }
+  },
+  connectionTimeout: 5000,
+  greetingTimeout: 5000,
+  socketTimeout: 5000
 });
 
 // Middleware
@@ -194,16 +197,22 @@ app.post('/api/contact', async (req, res) => {
     });
   }
 
-  // Verify email domain has MX records (can actually receive mail)
+  // Verify email domain has MX records (with safe 2s timeout)
   try {
     const domain = email.split('@')[1];
-    await dns.resolveMx(domain);
+    const mxPromise = dns.resolveMx(domain);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('DNS Timeout')), 2000)
+    );
+    await Promise.race([mxPromise, timeoutPromise]);
   } catch (dnsError) {
-    console.log(`\u2717 Invalid email domain: ${email}`);
-    return res.status(400).json({
-      success: false,
-      message: 'This email domain does not exist. Please check your email address.'
-    });
+    if (dnsError.message !== 'DNS Timeout') {
+      console.log(`✗ Invalid email domain: ${email}`);
+      return res.status(400).json({
+        success: false,
+        message: 'This email domain does not exist. Please check your email address.'
+      });
+    }
   }
 
   // Get visitor IP address
@@ -215,11 +224,19 @@ app.post('/api/contact', async (req, res) => {
   if (result.success) {
     console.log(`📧 Contact from ${name} (${email}) saved to database`);
 
-    // Send email notification
-    try {
+    // Check if Brevo credentials are provided
+    const isEmailConfigured = 
+      process.env.BREVO_SMTP_LOGIN && 
+      process.env.BREVO_SMTP_KEY && 
+      !process.env.BREVO_SMTP_KEY.includes('your_');
+
+    if (isEmailConfigured) {
+      const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_LOGIN;
+      const notifyEmail = process.env.NOTIFY_EMAIL || process.env.BREVO_SMTP_LOGIN;
+
       const mailOptions = {
-        from: `"Portfolio Contact" <${process.env.BREVO_SENDER_EMAIL}>`,
-        to: process.env.NOTIFY_EMAIL,
+        from: `"Portfolio Contact" <${senderEmail}>`,
+        to: notifyEmail,
         subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
         html: `
           <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; border-radius: 12px; overflow: hidden; border: 1px solid #1f293d;">
@@ -250,21 +267,22 @@ app.post('/api/contact', async (req, res) => {
         `
       };
 
-      await transporter.sendMail(mailOptions);
-      console.log(`✓ Email notification sent to ${process.env.NOTIFY_EMAIL}`);
-    } catch (emailError) {
-      console.error('✗ Email notification failed:', emailError.message);
-      // Don't fail the request if email fails — contact is already saved to DB
+      // Asynchronously send email without blocking the HTTP response
+      transporter.sendMail(mailOptions)
+        .then(() => console.log(`✓ Email notification sent to ${notifyEmail}`))
+        .catch(err => console.error('✗ Email notification error:', err.message));
+    } else {
+      console.log('ℹ Email credentials not configured. Contact saved to database only.');
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: '✓ Thank you! Your message has been received.',
       id: result.id,
       receivedAt: new Date().toISOString()
     });
   } else {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error saving message. Please try again.'
     });

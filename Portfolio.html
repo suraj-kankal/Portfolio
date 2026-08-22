@@ -738,6 +738,9 @@
         try {
           console.log('📤 Sending contact form to backend...');
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
           const response = await fetch(`${API_URL}/contact`, {
             method: 'POST',
             headers: {
@@ -748,9 +751,11 @@
               email: email,
               subject: subject,
               message: message
-            })
+            }),
+            signal: controller.signal
           });
 
+          clearTimeout(timeoutId);
           const result = await response.json();
 
           if (result.success) {
@@ -764,7 +769,11 @@
           }
         } catch (error) {
           console.error('✗ Error submitting contact:', error);
-          showFormMessage('error', 'Unable to send message. Please check your connection and try again.');
+          if (error.name === 'AbortError') {
+            showFormMessage('error', 'Server took too long to respond. Please try again in a moment.');
+          } else {
+            showFormMessage('error', 'Unable to send message. Please check your connection and try again.');
+          }
         } finally {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Contact Me';
