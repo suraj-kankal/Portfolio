@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ path: './environment.env' });
 const database = require('./database');
 
 const app = express();
@@ -121,33 +121,6 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ===== PUBLIC ENDPOINTS (No Authentication) =====
-
-// 1. Home endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: '✓ Portfolio API Server Running',
-    database: '✓ SQLite Database Connected',
-    public_endpoints: [
-      'GET /api/portfolio (all public data)',
-      'GET /api/skills (skills only)',
-      'GET /api/experience (experience only)',
-      'GET /api/education (education only)',
-      'POST /api/contact (submit contact form - SAVED TO DATABASE)'
-    ],
-    protected_endpoints: [
-      'GET /api/private-data (admin only)',
-      'GET /api/admin/contacts (view all contacts)',
-      'GET /api/admin/contacts/new (view new contacts)',
-      'GET /api/admin/contacts/:id (view specific contact)',
-      'PUT /api/admin/contacts/:id/status (update status)',
-      'DELETE /api/admin/contacts/:id (delete contact)',
-      'GET /api/admin/stats (view statistics)',
-      'POST /api/admin (admin operations)'
-    ],
-    note: 'Protected endpoints require: Authorization: Bearer admin_token_12345',
-    database_file: '📦 ./portfolio.db (SQLite)'
-  });
-});
 
 // 2. Get all public portfolio data
 app.get('/api/portfolio', (req, res) => {
@@ -351,7 +324,7 @@ app.use((req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n╔════════════════════════════════════════╗`);
   console.log(`║  ✓ Portfolio API Server Running       ║`);
   console.log(`║  📍 http://localhost:${PORT}            ║`);
