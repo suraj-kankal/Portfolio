@@ -6,12 +6,14 @@ const database = require('./database');
 
 const app = express();
 
-// ===== EMAIL TRANSPORTER SETUP =====
+// ===== EMAIL TRANSPORTER SETUP (Brevo - Send Only) =====
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
+    user: process.env.BREVO_SMTP_LOGIN,
+    pass: process.env.BREVO_SMTP_KEY
   }
 });
 
@@ -194,8 +196,8 @@ app.post('/api/contact', async (req, res) => {
     // Send email notification
     try {
       const mailOptions = {
-        from: `"Portfolio Contact" <${process.env.GMAIL_USER}>`,
-        to: process.env.GMAIL_USER,
+        from: `"Portfolio Contact" <${process.env.BREVO_SENDER_EMAIL}>`,
+        to: process.env.NOTIFY_EMAIL,
         subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
         html: `
           <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; border-radius: 12px; overflow: hidden; border: 1px solid #1f293d;">
@@ -227,7 +229,7 @@ app.post('/api/contact', async (req, res) => {
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`✓ Email notification sent to ${process.env.GMAIL_USER}`);
+      console.log(`✓ Email notification sent to ${process.env.NOTIFY_EMAIL}`);
     } catch (emailError) {
       console.error('✗ Email notification failed:', emailError.message);
       // Don't fail the request if email fails — contact is already saved to DB
