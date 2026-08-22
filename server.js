@@ -1,9 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config({ path: './environment.env' });
+const nodemailer = require('nodemailer');
 const database = require('./database');
 
 const app = express();
+
+// ===== EMAIL TRANSPORTER SETUP =====
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -160,7 +170,7 @@ app.get('/api/education', (req, res) => {
 });
 
 // 6. Submit contact form
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', async (req, res) => {
   console.log('✓ [PUBLIC] POST /api/contact');
   const { name, email, subject, message } = req.body;
 
@@ -180,6 +190,49 @@ app.post('/api/contact', (req, res) => {
 
   if (result.success) {
     console.log(`📧 Contact from ${name} (${email}) saved to database`);
+
+    // Send email notification
+    try {
+      const mailOptions = {
+        from: `"Portfolio Contact" <${process.env.GMAIL_USER}>`,
+        to: process.env.GMAIL_USER,
+        subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
+        html: `
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; border-radius: 12px; overflow: hidden; border: 1px solid #1f293d;">
+            <div style="background: linear-gradient(135deg, #38bdf8, #0ea5e9); padding: 24px 32px;">
+              <h1 style="margin: 0; color: #0b0f19; font-size: 22px;">📬 New Portfolio Message</h1>
+            </div>
+            <div style="padding: 28px 32px; color: #f3f4f6;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 10px 0; color: #9ca3af; width: 100px; vertical-align: top;">From</td>
+                  <td style="padding: 10px 0; color: #f3f4f6; font-weight: 600;">${name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Email</td>
+                  <td style="padding: 10px 0;"><a href="mailto:${email}" style="color: #38bdf8; text-decoration: none;">${email}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Subject</td>
+                  <td style="padding: 10px 0; color: #f3f4f6;">${subject || 'No Subject'}</td>
+                </tr>
+              </table>
+              <hr style="border: none; border-top: 1px solid #1f293d; margin: 16px 0;">
+              <p style="color: #9ca3af; margin: 0 0 8px; font-size: 13px;">Message</p>
+              <div style="background: #111827; border: 1px solid #1f293d; border-radius: 8px; padding: 16px; color: #f3f4f6; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+              <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Received at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
+            </div>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`✓ Email notification sent to ${process.env.GMAIL_USER}`);
+    } catch (emailError) {
+      console.error('✗ Email notification failed:', emailError.message);
+      // Don't fail the request if email fails — contact is already saved to DB
+    }
+
     res.status(201).json({
       success: true,
       message: '✓ Thank you! Your message has been received.',
