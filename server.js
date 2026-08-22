@@ -224,53 +224,77 @@ app.post('/api/contact', async (req, res) => {
   if (result.success) {
     console.log(`📧 Contact from ${name} (${email}) saved to database`);
 
-    // Check if Brevo credentials are provided
-    const isEmailConfigured = 
-      process.env.BREVO_SMTP_LOGIN && 
-      process.env.BREVO_SMTP_KEY && 
-      !process.env.BREVO_SMTP_KEY.includes('your_');
+    // Helper function to send email via Brevo HTTPS API or SMTP
+    const apiKey = process.env.BREVO_API_KEY || process.env.BREVO_SMTP_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'surajkankal0606@gmail.com';
+    const notifyEmail = process.env.NOTIFY_EMAIL || 'surajkankal0606@gmail.com';
 
-    if (isEmailConfigured) {
-      const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_LOGIN;
-      const notifyEmail = process.env.NOTIFY_EMAIL || process.env.BREVO_SMTP_LOGIN;
-
-      const mailOptions = {
-        from: `"Portfolio Contact" <${senderEmail}>`,
-        to: notifyEmail,
-        subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
-        html: `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; border-radius: 12px; overflow: hidden; border: 1px solid #1f293d;">
-            <div style="background: linear-gradient(135deg, #38bdf8, #0ea5e9); padding: 24px 32px;">
-              <h1 style="margin: 0; color: #0b0f19; font-size: 22px;">📬 New Portfolio Message</h1>
-            </div>
-            <div style="padding: 28px 32px; color: #f3f4f6;">
-              <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 10px 0; color: #9ca3af; width: 100px; vertical-align: top;">From</td>
-                  <td style="padding: 10px 0; color: #f3f4f6; font-weight: 600;">${name}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Email</td>
-                  <td style="padding: 10px 0;"><a href="mailto:${email}" style="color: #38bdf8; text-decoration: none;">${email}</a></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Subject</td>
-                  <td style="padding: 10px 0; color: #f3f4f6;">${subject || 'No Subject'}</td>
-                </tr>
-              </table>
-              <hr style="border: none; border-top: 1px solid #1f293d; margin: 16px 0;">
-              <p style="color: #9ca3af; margin: 0 0 8px; font-size: 13px;">Message</p>
-              <div style="background: #111827; border: 1px solid #1f293d; border-radius: 8px; padding: 16px; color: #f3f4f6; line-height: 1.6; white-space: pre-wrap;">${message}</div>
-              <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Received at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
-            </div>
+    if (apiKey && !apiKey.includes('your_')) {
+      const emailHtml = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; border-radius: 12px; overflow: hidden; border: 1px solid #1f293d;">
+          <div style="background: linear-gradient(135deg, #38bdf8, #0ea5e9); padding: 24px 32px;">
+            <h1 style="margin: 0; color: #0b0f19; font-size: 22px;">📬 New Portfolio Message</h1>
           </div>
-        `
-      };
+          <div style="padding: 28px 32px; color: #f3f4f6;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 10px 0; color: #9ca3af; width: 100px; vertical-align: top;">From</td>
+                <td style="padding: 10px 0; color: #f3f4f6; font-weight: 600;">${name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Email</td>
+                <td style="padding: 10px 0;"><a href="mailto:${email}" style="color: #38bdf8; text-decoration: none;">${email}</a></td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Subject</td>
+                <td style="padding: 10px 0; color: #f3f4f6;">${subject || 'No Subject'}</td>
+              </tr>
+            </table>
+            <hr style="border: none; border-top: 1px solid #1f293d; margin: 16px 0;">
+            <p style="color: #9ca3af; margin: 0 0 8px; font-size: 13px;">Message</p>
+            <div style="background: #111827; border: 1px solid #1f293d; border-radius: 8px; padding: 16px; color: #f3f4f6; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+            <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Received at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
+          </div>
+        </div>
+      `;
 
-      // Asynchronously send email without blocking the HTTP response
-      transporter.sendMail(mailOptions)
-        .then(() => console.log(`✓ Email notification sent to ${notifyEmail}`))
-        .catch(err => console.error('✗ Email notification error:', err.message));
+      // Try sending via HTTPS REST API (Port 443 - Never blocked by hosting)
+      fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': apiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'Portfolio Contact', email: senderEmail },
+          to: [{ email: notifyEmail, name: 'Suraj Kankal' }],
+          subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
+          htmlContent: emailHtml
+        })
+      })
+      .then(async (apiRes) => {
+        if (apiRes.ok) {
+          console.log(`✓ Email notification sent via Brevo HTTPS API to ${notifyEmail}`);
+        } else {
+          const errData = await apiRes.json();
+          console.warn('⚠️ Brevo API response:', errData);
+          // Fallback to SMTP if available
+          if (process.env.BREVO_SMTP_LOGIN) {
+            transporter.sendMail({
+              from: `"Portfolio Contact" <${senderEmail}>`,
+              to: notifyEmail,
+              subject: `📬 New Contact: ${subject || 'No Subject'} — from ${name}`,
+              html: emailHtml
+            })
+            .then(() => console.log(`✓ Email sent via SMTP fallback`))
+            .catch(smtpErr => console.error('✗ SMTP fallback failed:', smtpErr.message));
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('✗ Email send error:', err.message);
+      });
     } else {
       console.log('ℹ Email credentials not configured. Contact saved to database only.');
     }
@@ -292,52 +316,52 @@ app.post('/api/contact', async (req, res) => {
 // Diagnostic endpoint: Test Email Delivery
 app.get('/api/test-email', async (req, res) => {
   try {
-    const isConfigured = Boolean(process.env.BREVO_SMTP_LOGIN && process.env.BREVO_SMTP_KEY);
-    if (!isConfigured) {
+    const apiKey = process.env.BREVO_API_KEY || process.env.BREVO_SMTP_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'surajkankal0606@gmail.com';
+    const notifyEmail = process.env.NOTIFY_EMAIL || 'surajkankal0606@gmail.com';
+
+    if (!apiKey) {
       return res.status(400).json({
         success: false,
-        message: 'Brevo SMTP credentials are not configured in environment variables.',
-        env_status: {
-          BREVO_SMTP_LOGIN: Boolean(process.env.BREVO_SMTP_LOGIN),
-          BREVO_SMTP_KEY: Boolean(process.env.BREVO_SMTP_KEY),
-          BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || 'not set',
-          NOTIFY_EMAIL: process.env.NOTIFY_EMAIL || 'not set'
-        }
+        message: 'No Brevo API key or SMTP key found in environment variables.'
       });
     }
 
-    const testTransporter = nodemailer.createTransport({
-      host: 'smtp-relay.brevo.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.BREVO_SMTP_LOGIN,
-        pass: process.env.BREVO_SMTP_KEY
-      }
+    const apiRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: 'Portfolio Test', email: senderEmail },
+        to: [{ email: notifyEmail, name: 'Suraj Kankal' }],
+        subject: '🧪 Live Portfolio Test Email (HTTPS)',
+        htmlContent: '<p>This is a test email sent from your live deployed portfolio on Render via HTTPS API!</p>'
+      })
     });
 
-    const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_LOGIN;
-    const notifyEmail = process.env.NOTIFY_EMAIL || process.env.BREVO_SMTP_LOGIN;
+    const data = await apiRes.json();
 
-    const info = await testTransporter.sendMail({
-      from: `"Portfolio Test" <${senderEmail}>`,
-      to: notifyEmail,
-      subject: '🧪 Live Portfolio Test Email',
-      html: '<p>This is a test email sent from your live deployed portfolio on Render!</p>'
-    });
-
-    return res.json({
-      success: true,
-      message: `✓ Test email sent successfully to ${notifyEmail}!`,
-      messageId: info.messageId,
-      response: info.response
-    });
+    if (apiRes.ok) {
+      return res.json({
+        success: true,
+        method: 'Brevo HTTPS REST API (Port 443)',
+        message: `✓ Test email sent successfully to ${notifyEmail}!`,
+        data: data
+      });
+    } else {
+      return res.status(apiRes.status).json({
+        success: false,
+        method: 'Brevo HTTPS REST API (Port 443)',
+        brevo_response: data
+      });
+    }
   } catch (error) {
     return res.status(500).json({
       success: false,
-      error: error.message,
-      code: error.code,
-      command: error.command
+      error: error.message
     });
   }
 });
