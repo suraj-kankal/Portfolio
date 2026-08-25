@@ -4,6 +4,8 @@ require('dotenv').config({ path: './environment.env' });
 const nodemailer = require('nodemailer');
 const dns = require('dns').promises;
 const database = require('./database');
+const rateLimit = require('express-rate-limit');
+const escapeHtml = require('escape-html');
 
 const app = express();
 
@@ -22,6 +24,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Middleware
+app.set('trust proxy', 1); // Trust first proxy for accurate IP resolution
 app.use(cors());
 app.use(express.json());
 
@@ -97,6 +100,15 @@ const publicPortfolioData = {
       degree: "Diploma in Computer Science & Engineering",
       institution: "Vishveshwarayya Abhiyantriki Padvika Mahavidyalay, Almala",
       duration: "2019 - 2021"
+    }
+  ],
+  projects: [
+    {
+      title: "Personal Portfolio Website",
+      description: "A secure, dynamic, and responsive personal portfolio built with Node.js, SQLite, and Vibe Coding (AI Pair Programming). Features a custom API, rate-limiting, XSS prevention, and contact form handling with automated email notifications.",
+      tags: ["Node.js", "Express", "SQLite", "HTML/CSS/JS", "Vibe Coding"],
+      githubLink: "https://github.com/suraj-kankal/Portfolio",
+      liveLink: "#"
     }
   ]
 };
@@ -175,8 +187,24 @@ app.get('/api/education', (req, res) => {
   });
 });
 
+// 5.5 Get projects only
+app.get('/api/projects', (req, res) => {
+  console.log('✓ [PUBLIC] GET /api/projects');
+  res.json({
+    success: true,
+    projects: publicPortfolioData.projects
+  });
+});
+
+// Rate limiting for contact form (max 5 requests per 15 minutes per IP)
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
+});
+
 // 6. Submit contact form
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', contactLimiter, async (req, res) => {
   console.log('✓ [PUBLIC] POST /api/contact');
   const { name, email, subject, message } = req.body;
 
@@ -239,20 +267,20 @@ app.post('/api/contact', async (req, res) => {
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 10px 0; color: #9ca3af; width: 100px; vertical-align: top;">From</td>
-                <td style="padding: 10px 0; color: #f3f4f6; font-weight: 600;">${name}</td>
+                <td style="padding: 10px 0; color: #f3f4f6; font-weight: 600;">${escapeHtml(name)}</td>
               </tr>
               <tr>
                 <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Email</td>
-                <td style="padding: 10px 0;"><a href="mailto:${email}" style="color: #38bdf8; text-decoration: none;">${email}</a></td>
+                <td style="padding: 10px 0;"><a href="mailto:${escapeHtml(email)}" style="color: #38bdf8; text-decoration: none;">${escapeHtml(email)}</a></td>
               </tr>
               <tr>
                 <td style="padding: 10px 0; color: #9ca3af; vertical-align: top;">Subject</td>
-                <td style="padding: 10px 0; color: #f3f4f6;">${subject || 'No Subject'}</td>
+                <td style="padding: 10px 0; color: #f3f4f6;">${escapeHtml(subject || 'No Subject')}</td>
               </tr>
             </table>
             <hr style="border: none; border-top: 1px solid #1f293d; margin: 16px 0;">
             <p style="color: #9ca3af; margin: 0 0 8px; font-size: 13px;">Message</p>
-            <div style="background: #111827; border: 1px solid #1f293d; border-radius: 8px; padding: 16px; color: #f3f4f6; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+            <div style="background: #111827; border: 1px solid #1f293d; border-radius: 8px; padding: 16px; color: #f3f4f6; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(message)}</div>
             <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Received at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
           </div>
         </div>

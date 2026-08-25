@@ -395,6 +395,28 @@
       opacity: 1;
       transform: none;
     }
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .project-links {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .project-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-family: var(--font-code);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .project-links a:hover {
+      text-decoration: underline;
+    }
     footer {
       border-top: 1px solid var(--card-border);
       padding: 1.5rem 1.25rem;
@@ -420,6 +442,7 @@
         <li><a href="#skills">Skills</a></li>
         <li><a href="#experience">Experience</a></li>
         <li><a href="#education">Education</a></li>
+        <li><a href="#projects">Projects</a></li>
         <li><a href="#contact">Contact</a></li>
       </ul>
     </nav>
@@ -473,6 +496,14 @@
       </div>
     </section>
 
+    <!-- Projects -->
+    <section id="projects" class="fade-in-section">
+      <h3 class="section-title"><i class="fa-solid fa-folder-open"></i> Projects</h3>
+      <div class="projects-grid">
+        <!-- Projects loaded from backend API -->
+      </div>
+    </section>
+
     <!-- Contact Section -->
 <section id="contact" class="fade-in-section">
   <div class="contact-box">
@@ -517,6 +548,17 @@
     //const API_URL = 'http://localhost:3000/api';
     const API_URL = '/api';
 
+    // ===== SECURE ESCAPING =====
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     // ===== FETCH DATA FROM BACKEND =====
     async function loadPortfolioData() {
       try {
@@ -530,6 +572,7 @@
           populateSkills(data.data.skills);
           populateExperience(data.data.experience);
           populateEducation(data.data.education);
+          if (data.data.projects) populateProjects(data.data.projects);
         }
       } catch (error) {
         console.error('✗ Error loading portfolio data:', error);
@@ -546,7 +589,7 @@
       skills.forEach(skill => {
         const skillCard = document.createElement('div');
         skillCard.className = 'skill-card';
-        skillCard.textContent = skill;
+        skillCard.textContent = skill; // textContent is naturally safe from XSS
         skillsGrid.appendChild(skillCard);
       });
       
@@ -565,13 +608,13 @@
         card.className = 'card';
         card.innerHTML = `
           <div class="card-header">
-            <div class="card-title">${exp.position}</div>
-            <div class="card-meta">${exp.duration}</div>
+            <div class="card-title">${escapeHTML(exp.position)}</div>
+            <div class="card-meta">${escapeHTML(exp.duration)}</div>
           </div>
-          <div class="card-subtitle">${exp.company} • ${exp.location}</div>
-          <div class="card-body">${exp.description}</div>
+          <div class="card-subtitle">${escapeHTML(exp.company)} • ${escapeHTML(exp.location)}</div>
+          <div class="card-body">${escapeHTML(exp.description)}</div>
           <div class="card-tags">
-            ${exp.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+            ${exp.tags.map(tag => `<span class="tag">${escapeHTML(tag)}</span>`).join('')}
           </div>
         `;
         timeline.appendChild(card);
@@ -592,15 +635,46 @@
         card.className = 'card';
         card.innerHTML = `
           <div class="card-header">
-            <div class="card-title">${edu.degree}</div>
-            <div class="card-meta">${edu.duration}</div>
+            <div class="card-title">${escapeHTML(edu.degree)}</div>
+            <div class="card-meta">${escapeHTML(edu.duration)}</div>
           </div>
-          <div class="card-subtitle">${edu.institution}</div>
+          <div class="card-subtitle">${escapeHTML(edu.institution)}</div>
         `;
         timeline.appendChild(card);
       });
       
       console.log('✓ Education populated from backend');
+    }
+
+    // ===== POPULATE PROJECTS FROM BACKEND DATA =====
+    function populateProjects(projects) {
+      const projectsGrid = document.querySelector('.projects-grid');
+      if (!projectsGrid) return;
+      
+      projectsGrid.innerHTML = ''; // Clear existing
+      
+      projects.forEach(project => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-title">${escapeHTML(project.title)}</div>
+          </div>
+          <div class="card-body" style="flex: 1; margin-top: 0.5rem;">${escapeHTML(project.description)}</div>
+          <div class="card-tags">
+            ${project.tags ? project.tags.map(tag => `<span class="tag">${escapeHTML(tag)}</span>`).join('') : ''}
+          </div>
+          <div class="project-links">
+            ${project.githubLink ? `<a href="${escapeHTML(project.githubLink)}" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> Source</a>` : ''}
+            ${project.liveLink && project.liveLink !== '#' ? `<a href="${escapeHTML(project.liveLink)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Live</a>` : ''}
+          </div>
+        `;
+        projectsGrid.appendChild(card);
+      });
+      
+      console.log('✓ Projects populated from backend');
     }
 
     // ===== TYPING EFFECT FOR ROLES =====
