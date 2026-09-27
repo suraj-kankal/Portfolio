@@ -438,6 +438,35 @@ git merge feature/new-feature
 
 ---
 
+## **Deploy the Frontend to Cloudflare Pages**
+
+This project uses Express, SQLite, and email sending in its backend. Cloudflare Pages will host the static portfolio frontend; keep the API running on Render.
+
+### **1. Connect the GitHub Repository**
+
+1. In the Cloudflare dashboard, go to **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
+2. Choose the `Portfolio` GitHub repository.
+3. Set the production branch to `main`.
+4. Choose **None** as the framework preset, use this build command, and set the build output directory to `public`:
+
+  ```sh
+  mkdir -p public && cp Portfolio.html public/index.html
+  ```
+
+5. Save and deploy.
+
+The build publishes only the portfolio page as `index.html`, not the backend source or other project files. The frontend calls the existing Render API at `https://suraj-portfolio-ow1m.onrender.com/api`.
+
+### **2. Verify the Deployment**
+
+- Open the `*.pages.dev` URL Cloudflare gives you and check that the portfolio loads.
+- Open `https://suraj-portfolio-ow1m.onrender.com/api/portfolio` and confirm it returns JSON.
+- Submit a test contact form and confirm it succeeds. The backend, database, and Brevo email configuration remain on Render.
+
+Push future frontend changes to `main`; Cloudflare Pages will deploy them automatically. Backend changes still need to deploy to Render.
+
+---
+
 ## **Troubleshooting**
 
 ### **Issue: Authentication fails**
